@@ -1,0 +1,7 @@
+tox
+tox-travis
+pre-commit
+pytest-cov
+pytest-mock
+mock
+coverage

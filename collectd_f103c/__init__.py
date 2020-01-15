@@ -43,9 +43,10 @@ def to_measurements(data):
     for line in data.split("\r\n"):
         pattern = r"CH(?P<channel>.):(?P<raw>\d+)\t(?P<voltage>[.\d]+)V"
         m = re.match(pattern, line)
-        if m:
-            g = fix_types(m.groupdict())
-            measurements[g["channel"]] = g
+        if not m:
+            break
+        g = fix_types(m.groupdict())
+        measurements[g["channel"]] = g
     return measurements
 
 
