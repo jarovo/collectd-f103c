@@ -1,10 +1,6 @@
-import re
 import collectd
-import serial
 from threading import Thread
 
-# TODO make this configurable
-TTY_PATH = "/dev/ttyUSB0"
 EVAL = "value"
 
 port = None
@@ -24,70 +20,6 @@ def config(conf):
         if kv.key == "alpha":
             global alpha
             alpha = kv.values[0]
-
-
-def init():
-    global port, comp_emas
-    port = serial.Serial(TTY_PATH, 115200, timeout=0.1)
-    collectd.info("Port open")
-    comp_emas = [ema(alpha or DEFAULT_ALPHA, 0) for i in range(10)]
-
-
-def fix_types(groups):
-    groups["channel"] = int(groups["channel"])
-    groups["voltage"] = float(groups["voltage"])
-    groups["raw"] = int(groups["raw"])
-    return groups
-
-
-def read_frame(port):
-    data = port.read_until(b"\r\n\r\n")
-    data = data.decode("ascii").strip()
-    return data
-
-
-def to_measurements(data):
-    measurements = [None for _ in range(10)]
-    for line in data.split("\r\n"):
-        pattern = r"CH(?P<channel>.):(?P<raw>\d+)\t(?P<voltage>[.\d]+)V"
-        m = re.match(pattern, line)
-        if not m:
-            break
-        g = fix_types(m.groupdict())
-        measurements[g["channel"]] = g
-    return measurements
-
-
-def serial_reader():
-    while True:
-        frame = read_frame(port)
-        if not frame:
-            collectd.error(
-                "Timeouted when waiting for data."
-            )  # TODO improve message
-            break
-        measurements = to_measurements(frame)
-        if not all(measurements):
-            collectd.info("Incomplete read, repeating. ({})".format(frame))
-            continue
-        yield measurements
-
-
-def ema(alpha, initial=0.0):
-    previous = initial
-    while True:
-        current = yield previous
-        if current:
-            previous = alpha * current + (1.0 - alpha) * previous
-
-
-def add_computed(expression, measurements_series):
-    for measurements in measurements_series:
-        for m in measurements:
-            m["computed"] = eval(expression, dict(value=m["raw"]))[
-                0
-            ]  # Todo remove the subscription
-        yield measurements
 
 
 def smoothing(measurement_series, comp_emas):
@@ -189,4 +121,4 @@ def legacy_read():
 
 collectd.register_config(config)
 collectd.register_init(init)
-collectd.register_read(read)
+collectd.register_read(read, 0.5)
